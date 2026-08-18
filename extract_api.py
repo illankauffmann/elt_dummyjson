@@ -1,6 +1,16 @@
 import requests # Biblioteca para importar dados de api
-
 import pandas as pd
+import logging #Biblioteca padrão (que já vem no python) para criar logs
+
+# Configura o logger
+logging.basicConfig(  
+    level=logging.INFO,  # Mostra logs INFO ou mais graves (WARNING, ERROR, CRITICAL); todos menos DEBUG
+    format='%(asctime)s - %(levelname)s - %(message)s',  # Define o formato da mensagem: data/hora, nível e mensagem
+    handlers=[  
+        logging.FileHandler("ingestao.log" , encoding='utf-8'),  # Salva os logs no arquivo ingestao.log
+        logging.StreamHandler() # Exibe os logs no terminal também
+    ]
+)
 
 ### 1 - criando a função de generica de importação de dados da API
 def importar_dados_api(endpoint, limit=20):
@@ -15,6 +25,7 @@ def importar_dados_api(endpoint, limit=20):
     Retorna:
     list: Uma lista de dicionários contendo os dados importados da API.
     """
+    logging.info(f"Iniciando extração do endpoint: {endpoint}")
     url_base = f"https://dummyjson.com/{endpoint}"
     skip = 0
     data = []
@@ -24,9 +35,11 @@ def importar_dados_api(endpoint, limit=20):
         try:
             response = requests.get(url_base, params={'limit': limit, 'skip': skip}, timeout=10) #obtendo dados
         except requests.exceptions.RequestException as e:
+            logging.error(f"Erro ao conectar na API [{endpoint}]: {e}")
             raise ConnectionError(f"Erro ao conectar na API: {e}")
         
         if response.status_code != 200: #not OK
+            logging.error(f"Falha na requisição. Status code: {response.status_code}")
             raise ConnectionError(f"Falha na requisição. Status code: {response.status_code}")
 
         try:
@@ -43,10 +56,14 @@ def importar_dados_api(endpoint, limit=20):
         if len(items) < limit: #se n_itens < limit, então não haveria mais dados a serem retornados no próximo loop, então podemos sair do loop
             break
 
+    logging.info(f"Extração de {endpoint} concluída. Total de registros: {len(data)}")
     return data #retorna a lista de dicionários com os dados obtidos da API
 
 # 2. EXECUÇÃO DO PIPELINE COMPLETO
 if __name__ == "__main__":
+
+    logging.info("--- INICIANDO PIPELINE DE INGESTÃO ---")
+
     # A- Importando os dados da API
     products = importar_dados_api('products')
     carts = importar_dados_api('carts')
@@ -66,6 +83,7 @@ if __name__ == "__main__":
     df_users = pd.DataFrame(users)
     df_carts_items = pd.DataFrame(carts_items)
 
+    logging.info("--- PIPELINE CONCLUÍDO COM SUCESSO! DATAFRAMES PRONTOS PARA CARGA ---")
 
 ##comentarios
 ##tags da tabela produtos vale fazer ARRAY_TO_STRING(tags, ', ') AS lista_tags no SQL

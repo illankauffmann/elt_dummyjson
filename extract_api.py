@@ -13,7 +13,7 @@ def importar_dados_api(endpoint, limit=20):
     skip (int): O número de registros a serem ignorados (para paginação). Ex: skip=0 Começa do registro 0.
 
     Retorna:
-    pd.DataFrame: Um DataFrame contendo os dados importados da API.
+    list: Uma lista de dicionários contendo os dados importados da API.
     """
     url_base = f"https://dummyjson.com/{endpoint}"
     skip = 0
@@ -43,9 +43,29 @@ def importar_dados_api(endpoint, limit=20):
         if len(items) < limit: #se n_itens < limit, então não haveria mais dados a serem retornados no próximo loop, então podemos sair do loop
             break
 
-    return pd.DataFrame(data) #transofrma a lista de dicionários em um DataFrame
+    return data #retorna a lista de dicionários com os dados obtidos da API
 
-### 2 - Trazendo os dados via função
-produtos = importar_dados_api('products')
-carts = importar_dados_api('carts')
-users = importar_dados_api('users')
+# 2. EXECUÇÃO DO PIPELINE COMPLETO
+if __name__ == "__main__":
+    # A- Importando os dados da API
+    products = importar_dados_api('products')
+    carts = importar_dados_api('carts')
+    users = importar_dados_api('users')
+
+    ## B - Criando a carts_items DataFrame a partir da "coluna" 'products' do "DataFrame" 'carts'
+    carts_items = pd.json_normalize(
+    carts, #"dataframe"
+    record_path=['products'], #coluna que vai ser "explodida" em várias linhas
+    meta=['id', 'userId'], #colunas da tabela pai que vão ser mantidas na tabela filha
+    meta_prefix='cart_' #prefixo que vai vir antes do nome das colunas da tabela pai (ex: cart_id, cart_userId)
+    )
+
+    #C Criando os DataFrames de produtos
+    df_products = pd.DataFrame(products)
+    df_carts = pd.DataFrame(carts).drop(columns=['products']) #Coluna 'products' foi "explodida" na tabela 'carts_items', então não precisamos dela no DataFrame 'carts'
+    df_users = pd.DataFrame(users)
+    df_carts_items = pd.DataFrame(carts_items)
+
+
+##comentarios
+##tags da tabela produtos vale fazer ARRAY_TO_STRING(tags, ', ') AS lista_tags no SQL

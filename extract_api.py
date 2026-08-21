@@ -1,6 +1,7 @@
 import requests # Biblioteca para importar dados de api
 import pandas as pd
 import logging #Biblioteca padrão (que já vem no python) para criar logs
+from google.cloud import bigquery #para subir dados para o BigQuery
 
 # Configura o logger
 logging.basicConfig(  
@@ -12,7 +13,8 @@ logging.basicConfig(
     ]
 )
 
-### 1 - criando a função de generica de importação de dados da API
+### 1. FUNÇÕES
+# A. Criando a função de generica de importação de dados da API
 def importar_dados_api(endpoint, limit=20):
     """
     Função para importar dados de uma API e retornar um DataFrame do pandas.
@@ -59,6 +61,27 @@ def importar_dados_api(endpoint, limit=20):
     logging.info(f"Extração de {endpoint} concluída. Total de registros: {len(data)}")
     return data #retorna a lista de dicionários com os dados obtidos da API
 
+# B. EXECUÇÃO DO PIPELINE COMPLETO
+
+def carregar_no_bigquery(df, nome_tabela):
+    logging.info(f"Iniciando carga da tabela {nome_tabela} no BigQuery...")
+    
+    # O cliente pega a autenticação gerada pelo 'gcloud auth' automaticamente
+    project_id = "project-0a44a85e-57b4-45af-830" #id do projeto no GCP (Google Cloud Platform)
+    dataset_id = "dados_brutos" #dataset (schema)
+    
+    client = bigquery.Client(project=project_id) #<-- cliente para interagir com o BigQuery
+    table_id = f"{project_id}.{dataset_id}.{nome_tabela}" 
+    
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE #para sobrescrever a tabela caso ela já exista
+    )
+    
+    job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
+    job.result()  # Aguarda a conclusão da carga
+    
+    logging.info(f"✅ Tabela {nome_tabela} carregada com sucesso!")
+
 # 2. EXECUÇÃO DO PIPELINE COMPLETO
 if __name__ == "__main__":
 
@@ -82,6 +105,12 @@ if __name__ == "__main__":
     df_carts = pd.DataFrame(carts).drop(columns=['products']) #Coluna 'products' foi "explodida" na tabela 'carts_items', então não precisamos dela no DataFrame 'carts'
     df_users = pd.DataFrame(users)
     df_carts_items = pd.DataFrame(carts_items)
+
+    #D - Carregando os DataFrames no BigQuery
+    carregar_no_bigquery(df_products, "raw_products")
+    carregar_no_bigquery(df_carts, "raw_carts")
+    carregar_no_bigquery(df_carts_items, "raw_carts_items")
+    carregar_no_bigquery(df_users, "raw_users")
 
     logging.info("--- PIPELINE CONCLUÍDO COM SUCESSO! DATAFRAMES PRONTOS PARA CARGA ---")
 
